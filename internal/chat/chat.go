@@ -21,8 +21,8 @@ func New() (*Service, error) {
 	var service Service
 	var err error
 	service.ServerUserID = "my-server-user-id"
-	service.APIKey = os.Getenv("getstream_api_key")
-	service.APISecret = os.Getenv("getstream_api_secret")
+	service.APIKey = os.Getenv("GETSTREAM_API_KEY")
+	service.APISecret = os.Getenv("GETSTREAM_API_SECRET")
 
 	client, err := stream.NewClient(service.APIKey, service.APISecret)
 	if err != nil {
@@ -30,17 +30,19 @@ func New() (*Service, error) {
 		return nil, err
 	}
 
-	service.Channel, err = client.CreateChannel(
+	resp, err := client.CreateChannel(
 		context.Background(),
 		"messaging",
 		"channel-id",
 		service.ServerUserID,
+		&stream.ChannelRequest{},
 	)
 	if err != nil {
 		log.Println(err)
 		return nil, err
 	}
 
+	service.Channel = resp.Channel
 	return &service, nil
 }
 
@@ -49,13 +51,16 @@ func (s *Service) Listen(ctx context.Context) error {
 }
 
 func (s *Service) WatchChannel(ctx context.Context) error {
-	resp := stream.Query(s.Channel)
+	resp, err := s.Channel.Query(ctx, &stream.QueryRequest{})
+	if err != nil {
+		return err
+	}
 	fmt.Printf("%+v", resp)
 	return nil
 }
 
 func (s *Service) AddUser(ctx context.Context, userID string) error {
-	resp, err := s.Channel.AddMembers(ctx, []string{userID}, stream.AddMemberOptions{})
+	resp, err := s.Channel.AddMembers(ctx, []string{userID})
 	if err != nil {
 		return err
 	}
@@ -65,9 +70,10 @@ func (s *Service) AddUser(ctx context.Context, userID string) error {
 
 // SendMessage - sends a message woo
 func (s *Service) SendMessage(ctx context.Context, userID, msg string) error {
-	msg, err := s.Channel.SendMessage(ctx, &stream.Message{Text: msg}, userID)
+	resp, err := s.Channel.SendMessage(ctx, &stream.Message{Text: msg}, userID)
 	if err != nil {
 		return err
 	}
+	fmt.Printf("%+v\n", resp)
 	return nil
 }
